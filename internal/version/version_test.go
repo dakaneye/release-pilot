@@ -72,11 +72,13 @@ func TestBumpTag(t *testing.T) {
 func TestUpdatePackageJSON(t *testing.T) {
 	dir := t.TempDir()
 	pkg := filepath.Join(dir, "package.json")
-	os.WriteFile(pkg, []byte(`{
+	if err := os.WriteFile(pkg, []byte(`{
   "name": "my-app",
   "version": "1.0.0",
   "description": "test"
-}`), 0o644)
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := version.UpdateManifest(pkg, "node", "1.1.0")
 	if err != nil {
@@ -96,10 +98,12 @@ func TestUpdatePackageJSON(t *testing.T) {
 func TestUpdatePyprojectTOML(t *testing.T) {
 	dir := t.TempDir()
 	pyproject := filepath.Join(dir, "pyproject.toml")
-	os.WriteFile(pyproject, []byte(`[project]
+	if err := os.WriteFile(pyproject, []byte(`[project]
 name = "my-app"
 version = "1.0.0"
-`), 0o644)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := version.UpdateManifest(pyproject, "python", "1.1.0")
 	if err != nil {
@@ -117,15 +121,19 @@ func TestUpdatePackageJSONWithLockfile(t *testing.T) {
 	dir := t.TempDir()
 	pkg := filepath.Join(dir, "package.json")
 	lock := filepath.Join(dir, "package-lock.json")
-	os.WriteFile(pkg, []byte(`{
+	if err := os.WriteFile(pkg, []byte(`{
   "name": "my-app",
   "version": "1.0.0"
-}`), 0o644)
-	os.WriteFile(lock, []byte(`{
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lock, []byte(`{
   "name": "my-app",
   "version": "1.0.0",
   "lockfileVersion": 3
-}`), 0o644)
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := version.UpdateManifest(pkg, "node", "1.1.0")
 	if err != nil {

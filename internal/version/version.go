@@ -100,7 +100,9 @@ func updateJSON(path string, newVersion string) error {
 		if err := json.Unmarshal(lockData, &lockObj); err == nil {
 			lockObj["version"] = newVersion
 			if lockOut, err := json.MarshalIndent(lockObj, "", "  "); err == nil {
-				os.WriteFile(lockPath, append(lockOut, '\n'), 0o644)
+				if err := os.WriteFile(lockPath, append(lockOut, '\n'), 0o644); err != nil {
+					return fmt.Errorf("write %s: %w", lockPath, err)
+				}
 			}
 		}
 	}

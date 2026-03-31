@@ -76,7 +76,7 @@ func (c *Client) callAPI(input PromptInput) (AnalysisResult, error) {
 	if err != nil {
 		return AnalysisResult{}, fmt.Errorf("API call: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

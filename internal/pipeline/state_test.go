@@ -49,7 +49,9 @@ func TestStateStoresData(t *testing.T) {
 	state, _ := pipeline.LoadState(path)
 	state.Set("tag", "v1.2.0")
 	state.Set("notes", "## Features\n- stuff")
-	state.Save()
+	if err := state.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	reloaded, _ := pipeline.LoadState(path)
 	if reloaded.Get("tag") != "v1.2.0" {
@@ -67,10 +69,14 @@ func TestReset(t *testing.T) {
 	state, _ := pipeline.LoadState(path)
 	state.Complete("detect")
 	state.Set("tag", "v1.0.0")
-	state.Save()
+	if err := state.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	state.Reset()
-	state.Save()
+	if err := state.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	reloaded, _ := pipeline.LoadState(path)
 	if reloaded.IsCompleted("detect") {

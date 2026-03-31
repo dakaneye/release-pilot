@@ -60,6 +60,7 @@ func initGitRepo(t *testing.T, dir string) {
 		{"git", "init"},
 		{"git", "config", "user.email", "test@test.com"},
 		{"git", "config", "user.name", "Test"},
+		{"git", "config", "commit.gpgsign", "false"},
 		{"git", "remote", "add", "origin", "https://github.com/test/repo.git"},
 	}
 	for _, args := range cmds {
@@ -70,9 +71,15 @@ func initGitRepo(t *testing.T, dir string) {
 		}
 	}
 
-	os.WriteFile(filepath.Join(dir, "README.md"), []byte("test"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	run := exec.Command("git", "-C", dir, "add", ".")
-	run.Run()
+	if out, err := run.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v: %s", err, out)
+	}
 	run = exec.Command("git", "-C", dir, "commit", "-m", "init")
-	run.Run()
+	if out, err := run.CombinedOutput(); err != nil {
+		t.Fatalf("git commit: %v: %s", err, out)
+	}
 }

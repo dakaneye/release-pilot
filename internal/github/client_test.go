@@ -32,7 +32,9 @@ func TestListMergedPRs(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/repos/owner/repo/pulls" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(prs)
+			if err := json.NewEncoder(w).Encode(prs); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		http.NotFound(w, r)
@@ -61,12 +63,17 @@ func TestCreateRelease(t *testing.T) {
 	var received map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/repos/owner/repo/releases" && r.Method == "POST" {
-			json.NewDecoder(r.Body).Decode(&received)
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"id":       123,
 				"html_url": "https://github.com/owner/repo/releases/tag/v1.0.0",
-			})
+			}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		http.NotFound(w, r)
@@ -96,14 +103,21 @@ func TestEditReleaseBody(t *testing.T) {
 	var received map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/repos/owner/repo/releases/123" && r.Method == "PATCH" {
-			json.NewDecoder(r.Body).Decode(&received)
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"id": 123})
+			if err := json.NewEncoder(w).Encode(map[string]any{"id": 123}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		if r.URL.Path == "/repos/owner/repo/releases/tags/v1.0.0" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"id": 123})
+			if err := json.NewEncoder(w).Encode(map[string]any{"id": 123}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		http.NotFound(w, r)

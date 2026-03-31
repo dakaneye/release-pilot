@@ -8,9 +8,16 @@ import (
 	"github.com/dakaneye/release-pilot/internal/detect"
 )
 
+func writeFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDetectGo(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example"), 0o644)
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example")
 
 	result, err := detect.Ecosystem(dir, "auto")
 	if err != nil {
@@ -26,8 +33,8 @@ func TestDetectGo(t *testing.T) {
 
 func TestDetectGoWithGoreleaser(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example"), 0o644)
-	os.WriteFile(filepath.Join(dir, ".goreleaser.yaml"), []byte("builds:"), 0o644)
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example")
+	writeFile(t, filepath.Join(dir, ".goreleaser.yaml"), "builds:")
 
 	result, err := detect.Ecosystem(dir, "auto")
 	if err != nil {
@@ -43,7 +50,7 @@ func TestDetectGoWithGoreleaser(t *testing.T) {
 
 func TestDetectPython(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]"), 0o644)
+	writeFile(t, filepath.Join(dir, "pyproject.toml"), "[project]")
 
 	result, err := detect.Ecosystem(dir, "auto")
 	if err != nil {
@@ -56,7 +63,7 @@ func TestDetectPython(t *testing.T) {
 
 func TestDetectNode(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0o644)
+	writeFile(t, filepath.Join(dir, "package.json"), "{}")
 
 	result, err := detect.Ecosystem(dir, "auto")
 	if err != nil {
@@ -69,8 +76,8 @@ func TestDetectNode(t *testing.T) {
 
 func TestDetectAmbiguousFails(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example"), 0o644)
-	os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0o644)
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example")
+	writeFile(t, filepath.Join(dir, "package.json"), "{}")
 
 	_, err := detect.Ecosystem(dir, "auto")
 	if err == nil {
@@ -80,8 +87,8 @@ func TestDetectAmbiguousFails(t *testing.T) {
 
 func TestDetectAmbiguousWithOverride(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example"), 0o644)
-	os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0o644)
+	writeFile(t, filepath.Join(dir, "go.mod"), "module example")
+	writeFile(t, filepath.Join(dir, "package.json"), "{}")
 
 	result, err := detect.Ecosystem(dir, "go")
 	if err != nil {

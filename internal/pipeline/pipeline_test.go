@@ -52,7 +52,9 @@ func TestPipelineSkipsCompletedSteps(t *testing.T) {
 
 	state, _ := pipeline.LoadState(statePath)
 	state.Complete("detect")
-	state.Save()
+	if err := state.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	var executed []string
 	makeStep := func(name string) pipeline.Step {
@@ -85,7 +87,9 @@ func TestPipelineForceResetsState(t *testing.T) {
 
 	state, _ := pipeline.LoadState(statePath)
 	state.Complete("detect")
-	state.Save()
+	if err := state.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	var executed []string
 	makeStep := func(name string) pipeline.Step {

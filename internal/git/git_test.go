@@ -16,7 +16,10 @@ func initRepo(t *testing.T) string {
 	run(t, dir, "git", "config", "user.email", "test@test.com")
 	run(t, dir, "git", "config", "user.name", "Test")
 	run(t, dir, "git", "config", "tag.gpgsign", "false")
-	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# test"), 0o644)
+	run(t, dir, "git", "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	run(t, dir, "git", "add", ".")
 	run(t, dir, "git", "commit", "-m", "initial")
 	return dir
@@ -59,11 +62,15 @@ func TestCommitsSince(t *testing.T) {
 	dir := initRepo(t)
 	run(t, dir, "git", "tag", "v0.1.0")
 
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	run(t, dir, "git", "add", ".")
 	run(t, dir, "git", "commit", "-m", "feat: add feature A")
 
-	os.WriteFile(filepath.Join(dir, "b.go"), []byte("package b"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte("package b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	run(t, dir, "git", "add", ".")
 	run(t, dir, "git", "commit", "-m", "fix: fix bug B")
 

@@ -20,18 +20,23 @@ func TestAnalyze(t *testing.T) {
 		}
 
 		var req map[string]any
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
 		if req["model"] == nil {
 			t.Error("expected model in request")
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"content": []map[string]any{
 				{"type": "text", "text": responseJSON},
 			},
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}))
 	defer srv.Close()
 
@@ -65,18 +70,22 @@ func TestAnalyzeInvalidJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
+		var payload map[string]any
 		if callCount == 1 {
-			json.NewEncoder(w).Encode(map[string]any{
+			payload = map[string]any{
 				"content": []map[string]any{
 					{"type": "text", "text": "not json at all"},
 				},
-			})
+			}
 		} else {
-			json.NewEncoder(w).Encode(map[string]any{
+			payload = map[string]any{
 				"content": []map[string]any{
 					{"type": "text", "text": `{"bump": "patch", "notes": "## Fixes\n\n- Bug fix"}`},
 				},
-			})
+			}
+		}
+		if err := json.NewEncoder(w).Encode(payload); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}))
 	defer srv.Close()
@@ -104,11 +113,13 @@ func TestAnalyzeInvalidJSON(t *testing.T) {
 func TestAnalyzeBothRetriesFail(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"content": []map[string]any{
 				{"type": "text", "text": "garbage"},
 			},
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}))
 	defer srv.Close()
 
