@@ -54,6 +54,7 @@ runs:
       env:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         RELEASE_PILOT_MODEL: ${{ inputs.model }}
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
         ARGS="ship"
         if [[ "${{ inputs.sign }}" == "true" ]]; then
