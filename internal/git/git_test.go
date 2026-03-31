@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dakaneye/release-pilot/internal/git"
@@ -240,5 +241,91 @@ func TestContextCancellation(t *testing.T) {
 	_, err := git.LatestTag(ctx, dir, "")
 	if err == nil {
 		t.Fatal("expected error with cancelled context")
+	}
+}
+
+func TestCommitsSinceWithPaths(t *testing.T) {
+	ctx := t.Context()
+	dir := initRepo(t)
+	run(t, dir, "git", "tag", "v0.1.0")
+
+	// Create a commit in subdir
+	subdir := filepath.Join(dir, "review-code")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(subdir, "main.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", ".")
+	run(t, dir, "git", "commit", "-m", "feat: add review-code module")
+
+	// Create a commit outside subdir
+	if err := os.WriteFile(filepath.Join(dir, "root.go"), []byte("package root"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", ".")
+	run(t, dir, "git", "commit", "-m", "feat: add root module")
+
+	// Without path filter: both commits
+	all, err := git.CommitsSince(ctx, dir, "v0.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2 commits without filter, got %d", len(all))
+	}
+
+	// With path filter: only the subdir commit
+	filtered, err := git.CommitsSince(ctx, dir, "v0.1.0", "review-code/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 commit with path filter, got %d", len(filtered))
+	}
+	if !strings.Contains(filtered[0].Subject, "review-code") {
+		t.Errorf("expected review-code commit, got %s", filtered[0].Subject)
+	}
+}
+
+func TestDiffSinceWithPaths(t *testing.T) {
+	ctx := t.Context()
+	dir := initRepo(t)
+	run(t, dir, "git", "tag", "v0.1.0")
+
+	// Create files in and outside subdir
+	subdir := filepath.Join(dir, "review-code")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(subdir, "main.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "root.go"), []byte("package root"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", ".")
+	run(t, dir, "git", "commit", "-m", "feat: add files")
+
+	// Full diff includes both files
+	fullDiff, err := git.DiffSince(ctx, dir, "v0.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(fullDiff, "root.go") {
+		t.Error("full diff should include root.go")
+	}
+
+	// Filtered diff only includes subdir
+	filteredDiff, err := git.DiffSince(ctx, dir, "v0.1.0", "review-code/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(filteredDiff, "review-code/main.go") {
+		t.Error("filtered diff should include review-code/main.go")
+	}
+	if strings.Contains(filteredDiff, "root.go") {
+		t.Error("filtered diff should not include root.go")
 	}
 }

@@ -60,8 +60,13 @@ func PreviousTag(ctx context.Context, dir string, current string, prefix string)
 	return "", fmt.Errorf("no tag before %s", current)
 }
 
-func CommitsSince(ctx context.Context, dir string, tag string) ([]Commit, error) {
-	out, err := runGit(ctx, dir, "log", tag+"..HEAD", "--pretty=format:%H %s")
+func CommitsSince(ctx context.Context, dir string, tag string, paths ...string) ([]Commit, error) {
+	args := []string{"log", tag + "..HEAD", "--pretty=format:%H %s"}
+	if len(paths) > 0 {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+	out, err := runGit(ctx, dir, args...)
 	if err != nil {
 		return nil, fmt.Errorf("git log since %s: %w", tag, err)
 	}
@@ -135,8 +140,13 @@ func TagTimestamp(ctx context.Context, dir string, tag string) (time.Time, error
 	return t, nil
 }
 
-func DiffSince(ctx context.Context, dir string, tag string) (string, error) {
-	out, err := runGit(ctx, dir, "diff", tag+"..HEAD")
+func DiffSince(ctx context.Context, dir string, tag string, paths ...string) (string, error) {
+	args := []string{"diff", tag + "..HEAD"}
+	if len(paths) > 0 {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+	out, err := runGit(ctx, dir, args...)
 	if err != nil {
 		return "", fmt.Errorf("diff since %s: %w", tag, err)
 	}
