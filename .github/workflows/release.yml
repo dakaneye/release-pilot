@@ -22,6 +22,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install goreleaser
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7
+        with:
+          install-only: true
+
       # Dogfood: build from source (this repo has the latest code)
       - name: Build release-pilot
         run: go build -o /usr/local/bin/release-pilot ./cmd/release-pilot/
