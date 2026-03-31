@@ -1,0 +1,31 @@
+name: Monthly Scan
+
+on:
+  schedule:
+    - cron: '0 8 1 * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Grype filesystem scan
+        uses: anchore/scan-action@869c549e657a088dc0441b08ce4fc0ecdac2bb65 # v5
+        id: scan
+        with:
+          path: "."
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
