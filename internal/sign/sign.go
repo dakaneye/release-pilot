@@ -22,7 +22,7 @@ func Run(enabled bool, tag, owner, repo string) error {
 	cmd := exec.Command("cosign", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("cosign sign: %s\n%s", err, string(out))
+		return fmt.Errorf("cosign sign: %w\n%s", err, string(out))
 	}
 	return nil
 }
