@@ -72,4 +72,44 @@ func TestSystemPromptIsStable(t *testing.T) {
 	if !strings.Contains(prompt, "JSON") {
 		t.Error("system prompt should mention JSON output format")
 	}
+	if !strings.Contains(prompt, "No markdown fences") {
+		t.Error("system prompt should prohibit markdown fences")
+	}
+	if !strings.Contains(prompt, "Do not invent") {
+		t.Error("system prompt should guard against hallucination")
+	}
+}
+
+func TestBuildPromptTaskAnchor(t *testing.T) {
+	input := claude.PromptInput{
+		RepoOwner:  "owner",
+		RepoName:   "repo",
+		CurrentTag: "v1.0.0",
+		Commits: []git.Commit{
+			{Hash: "abc1234567890", Subject: "fix: bug"},
+		},
+	}
+
+	prompt := claude.BuildUserPrompt(input)
+
+	if !strings.Contains(prompt, "Analyze the following changes") {
+		t.Error("user prompt should start with task anchor")
+	}
+}
+
+func TestBuildPromptNoPRsGuidesCommitUsage(t *testing.T) {
+	input := claude.PromptInput{
+		RepoOwner:  "owner",
+		RepoName:   "repo",
+		CurrentTag: "v1.0.0",
+		Commits: []git.Commit{
+			{Hash: "abc1234567890", Subject: "fix: bug"},
+		},
+	}
+
+	prompt := claude.BuildUserPrompt(input)
+
+	if !strings.Contains(prompt, "sole source of changes") {
+		t.Error("prompt should instruct model to use commits when no PRs exist")
+	}
 }

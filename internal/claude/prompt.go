@@ -18,34 +18,34 @@ type PromptInput struct {
 }
 
 func SystemPrompt() string {
-	return `You are a release engineer analyzing changes for a software release.
+	return `You are a release engineer. Analyze the changes provided and return a JSON object with two fields.
 
-Your job:
-1. Determine the appropriate semver bump level (major, minor, or patch) based on the changes.
-2. Write human-readable release notes in markdown.
+RESPONSE FORMAT — Return ONLY a raw JSON object. No markdown fences, no commentary, no text before or after:
+{"bump":"<level>","notes":"<markdown>"}
 
-Rules for semver bump:
-- major: breaking changes to public API, removed features, incompatible changes
-- minor: new features, new capabilities, non-breaking additions
-- patch: bug fixes, documentation, dependency updates, internal refactoring
+FIELD: bump
+Determine the single highest semver bump level across all changes:
+- "major": Removed or renamed public API (functions, types, endpoints, CLI flags), changed function signatures in breaking ways, changed default behavior that existing users depend on
+- "minor": New features, new API surface, new commands/flags/endpoints, deprecations (without removal), new optional parameters
+- "patch": Bug fixes, performance improvements, documentation, dependency updates, CI/test/refactoring changes, anything that does not change public-facing behavior
+When changes span multiple levels, use the highest. If uncertain between two levels, choose the lower one.
 
-Rules for release notes:
-- Group changes under these headings (omit empty groups): Breaking Changes, Features, Fixes, Other
-- Write for end users: explain what changed and why it matters, not implementation details
-- Reference PR numbers as links: [#N](https://github.com/{owner}/{repo}/pull/N)
-- Be concise: one line per change unless it needs more context
-- If there are breaking changes, put them first with clear migration guidance
-
-Respond with ONLY a JSON object in this exact format:
-{
-  "bump": "major" | "minor" | "patch",
-  "notes": "markdown release notes"
-}`
+FIELD: notes
+Write concise release notes in markdown for end users:
+- Use only these H2 headings (omit empty ones): Breaking Changes, Features, Fixes, Dependencies, Other
+- Breaking Changes goes first when present. Include migration guidance for each breaking change.
+- One bullet per change. Describe WHAT changed and WHY it matters, not how it was implemented.
+- Reference PRs as links: [#N](https://github.com/OWNER/REPO/pull/N) using the actual owner/repo from the input.
+- When no PRs exist, reference commits by short hash.
+- Group dependency update PRs (Dependabot, Renovate, deps in title) under Dependencies.
+- Omit CI-only, test-only, and internal tooling changes unless they affect end users.
+- Do not invent changes absent from the input.`
 }
 
 func BuildUserPrompt(input PromptInput) string {
 	var b strings.Builder
 
+	b.WriteString("Analyze the following changes and produce the JSON response.\n\n")
 	fmt.Fprintf(&b, "Repository: %s/%s\n", input.RepoOwner, input.RepoName)
 	fmt.Fprintf(&b, "Current version: %s\n\n", input.CurrentTag)
 
@@ -59,7 +59,7 @@ func BuildUserPrompt(input PromptInput) string {
 			b.WriteString("\n")
 		}
 	} else {
-		b.WriteString("No pull requests found since last release.\n\n")
+		b.WriteString("No pull requests found. Use commits below as the sole source of changes.\n\n")
 	}
 
 	if len(input.Commits) > 0 {
