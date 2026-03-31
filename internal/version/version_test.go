@@ -156,6 +156,53 @@ version = "1.0.0"
 	}
 }
 
+func TestParsePrefixedTag(t *testing.T) {
+	tests := []struct {
+		name    string
+		tag     string
+		prefix  string
+		major   int
+		minor   int
+		patch   int
+		wantErr bool
+	}{
+		{"standard prefix", "review-code/v1.2.3", "review-code/", 1, 2, 3, false},
+		{"prefix without v", "review-code/1.2.3", "review-code/", 1, 2, 3, false},
+		{"empty prefix passthrough", "v1.2.3", "", 1, 2, 3, false},
+		{"wrong prefix", "other-code/v1.2.3", "review-code/", 0, 0, 0, true},
+		{"no prefix on prefixed tag", "v1.2.3", "review-code/", 0, 0, 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, err := version.ParsePrefixedTag(tt.tag, tt.prefix)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v.Major != tt.major || v.Minor != tt.minor || v.Patch != tt.patch {
+				t.Errorf("expected %d.%d.%d, got %d.%d.%d", tt.major, tt.minor, tt.patch, v.Major, v.Minor, v.Patch)
+			}
+		})
+	}
+}
+
+func TestPrefixedTag(t *testing.T) {
+	v := version.Semver{Major: 1, Minor: 2, Patch: 3}
+
+	if got := v.PrefixedTag("review-code/"); got != "review-code/v1.2.3" {
+		t.Errorf("expected review-code/v1.2.3, got %s", got)
+	}
+	if got := v.PrefixedTag(""); got != "v1.2.3" {
+		t.Errorf("expected v1.2.3, got %s", got)
+	}
+}
+
 func TestUpdatePackageJSONWithLockfile(t *testing.T) {
 	dir := t.TempDir()
 	pkg := filepath.Join(dir, "package.json")

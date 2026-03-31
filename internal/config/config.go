@@ -11,6 +11,8 @@ import (
 type Config struct {
 	Ecosystem string       `yaml:"ecosystem"`
 	Model     string       `yaml:"model"`
+	TagPrefix string       `yaml:"tag-prefix"`
+	SubDir    string       `yaml:"sub-dir"`
 	Notes     NotesConfig  `yaml:"notes"`
 	GitHub    GitHubConfig `yaml:"github"`
 }

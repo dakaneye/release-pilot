@@ -26,6 +26,8 @@ type Options struct {
 	Sign        bool
 	VersionOver string
 	Tag         string // pre-existing tag (CI mode: tag already pushed, use previous tag as baseline)
+	TagPrefix   string
+	SubDir      string
 	Force       bool
 	ConfigPath  string
 }
@@ -35,6 +37,13 @@ func Run(ctx context.Context, dir string, opts Options) error {
 	cfg, err := config.Load(opts.ConfigPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
+	}
+
+	if opts.TagPrefix != "" {
+		cfg.TagPrefix = opts.TagPrefix
+	}
+	if opts.SubDir != "" {
+		cfg.SubDir = opts.SubDir
 	}
 
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
@@ -89,17 +98,19 @@ func Run(ctx context.Context, dir string, opts Options) error {
 		{
 			Name: "bump",
 			Run: func(sctx *pipeline.StepContext) error {
+				prefix := cfg.TagPrefix
+
 				var latestTag string
 				if opts.Tag != "" {
 					// CI mode: tag already exists, find the previous one as baseline
-					prev, err := git.PreviousTag(ctx, dir, opts.Tag)
+					prev, err := git.PreviousTag(ctx, dir, opts.Tag, prefix)
 					if err != nil {
 						return fmt.Errorf("find previous tag before %s: %w", opts.Tag, err)
 					}
 					latestTag = prev
 					sctx.State.Set("tag", opts.Tag)
 				} else {
-					tag, err := git.LatestTag(ctx, dir)
+					tag, err := git.LatestTag(ctx, dir, prefix)
 					if err != nil {
 						return fmt.Errorf("get latest tag: %w", err)
 					}
@@ -107,7 +118,7 @@ func Run(ctx context.Context, dir string, opts Options) error {
 				}
 				log.Printf("latest tag: %s", latestTag)
 
-				current, err := version.ParseTag(latestTag)
+				current, err := version.ParsePrefixedTag(latestTag, prefix)
 				if err != nil {
 					return fmt.Errorf("parse tag %s: %w", latestTag, err)
 				}
@@ -122,7 +133,12 @@ func Run(ctx context.Context, dir string, opts Options) error {
 					return fmt.Errorf("fetch merged PRs: %w", err)
 				}
 
-				commits, err := git.CommitsSince(ctx, dir, latestTag)
+				var subDirPaths []string
+				if cfg.SubDir != "" {
+					subDirPaths = []string{cfg.SubDir}
+				}
+
+				commits, err := git.CommitsSince(ctx, dir, latestTag, subDirPaths...)
 				if err != nil {
 					return fmt.Errorf("get commits since %s: %w", latestTag, err)
 				}
@@ -140,7 +156,7 @@ func Run(ctx context.Context, dir string, opts Options) error {
 				}
 
 				if cfg.Notes.IncludeDiffs {
-					diffs, err := git.DiffSince(ctx, dir, latestTag)
+					diffs, err := git.DiffSince(ctx, dir, latestTag, subDirPaths...)
 					if err != nil {
 						return fmt.Errorf("get diffs: %w", err)
 					}
@@ -162,11 +178,11 @@ func Run(ctx context.Context, dir string, opts Options) error {
 					if err != nil {
 						return fmt.Errorf("parse version override %s: %w", opts.VersionOver, err)
 					}
-					sctx.State.Set("tag", overVer.Tag())
+					sctx.State.Set("tag", overVer.PrefixedTag(prefix))
 					sctx.State.Set("bump", "override")
 				} else {
 					next := current.Bump(analysis.Bump)
-					sctx.State.Set("tag", next.Tag())
+					sctx.State.Set("tag", next.PrefixedTag(prefix))
 					sctx.State.Set("bump", analysis.Bump)
 				}
 
@@ -177,7 +193,7 @@ func Run(ctx context.Context, dir string, opts Options) error {
 				manifest := sctx.State.Get("manifest-path")
 				if manifest != "" && (eco == "python" || eco == "node") {
 					tag := sctx.State.Get("tag")
-					ver, _ := version.ParseTag(tag)
+					ver, _ := version.ParsePrefixedTag(tag, prefix)
 					if err := version.UpdateManifest(manifest, eco, ver.String()); err != nil {
 						return fmt.Errorf("update manifest: %w", err)
 					}

@@ -104,3 +104,40 @@ func TestInvalidYAMLReturnsError(t *testing.T) {
 		t.Fatal("expected error for invalid YAML")
 	}
 }
+
+func TestLoadTagPrefixAndSubDir(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".release-pilot.yaml")
+	err := os.WriteFile(cfgPath, []byte(`
+ecosystem: go
+tag-prefix: review-code/
+sub-dir: review-code/
+`), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TagPrefix != "review-code/" {
+		t.Errorf("expected tag-prefix=review-code/, got %s", cfg.TagPrefix)
+	}
+	if cfg.SubDir != "review-code/" {
+		t.Errorf("expected sub-dir=review-code/, got %s", cfg.SubDir)
+	}
+}
+
+func TestDefaultsHaveEmptyPrefixAndSubDir(t *testing.T) {
+	cfg, err := config.Load("/nonexistent/path.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TagPrefix != "" {
+		t.Errorf("expected empty tag-prefix by default, got %s", cfg.TagPrefix)
+	}
+	if cfg.SubDir != "" {
+		t.Errorf("expected empty sub-dir by default, got %s", cfg.SubDir)
+	}
+}

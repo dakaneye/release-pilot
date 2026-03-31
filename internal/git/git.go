@@ -14,20 +14,28 @@ type Commit struct {
 	Subject string
 }
 
-func LatestTag(ctx context.Context, dir string) (string, error) {
+func LatestTag(ctx context.Context, dir string, prefix string) (string, error) {
 	out, err := runGit(ctx, dir, "tag", "--sort=-version:refname")
 	if err != nil {
 		return "", fmt.Errorf("no tags found: %w", err)
 	}
 	tags := strings.Split(strings.TrimSpace(out), "\n")
-	if len(tags) == 0 || tags[0] == "" {
-		return "", errors.New("no tags found")
+	for _, t := range tags {
+		if t == "" {
+			continue
+		}
+		if prefix == "" || strings.HasPrefix(t, prefix) {
+			return t, nil
+		}
 	}
-	return tags[0], nil
+	if prefix != "" {
+		return "", fmt.Errorf("no tags found matching prefix %s", prefix)
+	}
+	return "", errors.New("no tags found")
 }
 
 // PreviousTag returns the tag before the given tag in version order.
-func PreviousTag(ctx context.Context, dir string, current string) (string, error) {
+func PreviousTag(ctx context.Context, dir string, current string, prefix string) (string, error) {
 	out, err := runGit(ctx, dir, "tag", "--sort=-version:refname")
 	if err != nil {
 		return "", fmt.Errorf("list tags: %w", err)
@@ -35,6 +43,9 @@ func PreviousTag(ctx context.Context, dir string, current string) (string, error
 	tags := strings.Split(strings.TrimSpace(out), "\n")
 	found := false
 	for _, t := range tags {
+		if prefix != "" && !strings.HasPrefix(t, prefix) {
+			continue
+		}
 		if t == current {
 			found = true
 			continue
@@ -49,8 +60,13 @@ func PreviousTag(ctx context.Context, dir string, current string) (string, error
 	return "", fmt.Errorf("no tag before %s", current)
 }
 
-func CommitsSince(ctx context.Context, dir string, tag string) ([]Commit, error) {
-	out, err := runGit(ctx, dir, "log", tag+"..HEAD", "--pretty=format:%H %s")
+func CommitsSince(ctx context.Context, dir string, tag string, paths ...string) ([]Commit, error) {
+	args := []string{"log", tag + "..HEAD", "--pretty=format:%H %s"}
+	if len(paths) > 0 {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+	out, err := runGit(ctx, dir, args...)
 	if err != nil {
 		return nil, fmt.Errorf("git log since %s: %w", tag, err)
 	}
@@ -124,8 +140,13 @@ func TagTimestamp(ctx context.Context, dir string, tag string) (time.Time, error
 	return t, nil
 }
 
-func DiffSince(ctx context.Context, dir string, tag string) (string, error) {
-	out, err := runGit(ctx, dir, "diff", tag+"..HEAD")
+func DiffSince(ctx context.Context, dir string, tag string, paths ...string) (string, error) {
+	args := []string{"diff", tag + "..HEAD"}
+	if len(paths) > 0 {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+	out, err := runGit(ctx, dir, args...)
 	if err != nil {
 		return "", fmt.Errorf("diff since %s: %w", tag, err)
 	}
