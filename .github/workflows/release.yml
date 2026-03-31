@@ -22,10 +22,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7
+      # Dogfood: use release-pilot's own action for the release
+      - name: Release with release-pilot
+        uses: ./action
         with:
-          version: latest
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

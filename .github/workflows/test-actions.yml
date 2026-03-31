@@ -1,0 +1,75 @@
+name: Test Actions
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-setup-action:
+    name: "Test: setup action (install-only)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Run setup action
+        uses: ./action/setup
+        with:
+          version: v1.0.0
+
+      - name: Verify binary installed
+        run: |
+          which release-pilot
+          release-pilot version
+
+      - name: Verify ship --help works
+        run: release-pilot ship --help
+
+  test-setup-action-latest:
+    name: "Test: setup action (latest)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Run setup action with latest
+        uses: ./action/setup
+
+      - name: Verify binary installed
+        run: release-pilot version
+
+  test-simple-action-dry-run:
+    name: "Test: simple action (dry-run)"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Run simple action with dry-run
+        uses: ./action
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          args: "--dry-run"
+
+  test-advanced-mode-dry-run:
+    name: "Test: advanced mode (dry-run)"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Install release-pilot
+        uses: ./action/setup
+
+      - name: Run dry-run manually
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: release-pilot ship --dry-run
