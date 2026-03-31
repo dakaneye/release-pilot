@@ -26,6 +26,8 @@ type Options struct {
 	Sign        bool
 	VersionOver string
 	Tag         string // pre-existing tag (CI mode: tag already pushed, use previous tag as baseline)
+	TagPrefix   string
+	SubDir      string
 	Force       bool
 	ConfigPath  string
 }
@@ -35,6 +37,13 @@ func Run(ctx context.Context, dir string, opts Options) error {
 	cfg, err := config.Load(opts.ConfigPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
+	}
+
+	if opts.TagPrefix != "" {
+		cfg.TagPrefix = opts.TagPrefix
+	}
+	if opts.SubDir != "" {
+		cfg.SubDir = opts.SubDir
 	}
 
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
