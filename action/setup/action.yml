@@ -1,0 +1,13 @@
+name: "Setup release-pilot"
+description: "Install the release-pilot CLI binary"
+inputs:
+  version:
+    description: "Version to install (default: latest)"
+    required: false
+    default: "latest"
+runs:
+  using: "composite"
+  steps:
+    - name: Install release-pilot
+      shell: bash
+      run: bash "${{ github.action_path }}/../install.sh" "${{ inputs.version }}"

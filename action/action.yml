@@ -1,0 +1,73 @@
+name: "release-pilot"
+description: "Orchestrate releases with AI-powered release notes"
+inputs:
+  anthropic-api-key:
+    description: "Anthropic API key"
+    required: true
+  model:
+    description: "Claude model to use"
+    required: false
+    default: "claude-sonnet-4-6"
+  sign:
+    description: "Sign release artifacts with cosign"
+    required: false
+    default: "false"
+  draft:
+    description: "Create draft release"
+    required: false
+    default: "false"
+  prerelease:
+    description: "Mark as prerelease"
+    required: false
+    default: "false"
+  include-diffs:
+    description: "Include full diffs in AI prompt"
+    required: false
+    default: "false"
+  args:
+    description: "Additional CLI arguments"
+    required: false
+    default: ""
+outputs:
+  version:
+    description: "Released version"
+    value: ${{ steps.release.outputs.version }}
+  tag:
+    description: "Git tag created"
+    value: ${{ steps.release.outputs.tag }}
+  release-url:
+    description: "GitHub release URL"
+    value: ${{ steps.release.outputs.release-url }}
+  release-notes:
+    description: "Generated release notes"
+    value: ${{ steps.release.outputs.release-notes }}
+runs:
+  using: "composite"
+  steps:
+    - name: Install release-pilot
+      shell: bash
+      run: bash "${{ github.action_path }}/install.sh"
+
+    - name: Run release-pilot
+      id: release
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        RELEASE_PILOT_MODEL: ${{ inputs.model }}
+      run: |
+        ARGS="ship"
+        if [[ "${{ inputs.sign }}" == "true" ]]; then
+          ARGS="$ARGS --sign"
+        fi
+        if [[ -n "${{ inputs.args }}" ]]; then
+          ARGS="$ARGS ${{ inputs.args }}"
+        fi
+        release-pilot $ARGS
+
+    - name: Post summary
+      if: always()
+      shell: bash
+      run: |
+        echo "## Release Pilot" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "Release completed." >> "$GITHUB_STEP_SUMMARY"
