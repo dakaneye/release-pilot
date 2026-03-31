@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // Semver holds major, minor, and patch version components.
@@ -54,6 +55,25 @@ func ParseTag(tag string) (Semver, error) {
 	patch, _ := strconv.Atoi(matches[3])
 
 	return Semver{Major: major, Minor: minor, Patch: patch}, nil
+}
+
+// PrefixedTag returns the version as a git tag with the given prefix.
+// When prefix is empty, this is equivalent to Tag().
+func (v Semver) PrefixedTag(prefix string) string {
+	return prefix + "v" + v.String()
+}
+
+// ParsePrefixedTag strips the given prefix from a tag and parses the remainder as semver.
+// When prefix is empty, this is equivalent to ParseTag.
+// Returns an error if the tag does not start with the expected prefix.
+func ParsePrefixedTag(tag string, prefix string) (Semver, error) {
+	if prefix != "" {
+		if !strings.HasPrefix(tag, prefix) {
+			return Semver{}, fmt.Errorf("tag %s does not match prefix %s", tag, prefix)
+		}
+		tag = strings.TrimPrefix(tag, prefix)
+	}
+	return ParseTag(tag)
 }
 
 // UpdateManifest updates the version field in a project manifest file.
