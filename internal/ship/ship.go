@@ -133,12 +133,12 @@ func Run(ctx context.Context, dir string, opts Options) error {
 					return fmt.Errorf("fetch merged PRs: %w", err)
 				}
 
-				var commits []git.Commit
+				var subDirPaths []string
 				if cfg.SubDir != "" {
-					commits, err = git.CommitsSince(ctx, dir, latestTag, cfg.SubDir)
-				} else {
-					commits, err = git.CommitsSince(ctx, dir, latestTag)
+					subDirPaths = []string{cfg.SubDir}
 				}
+
+				commits, err := git.CommitsSince(ctx, dir, latestTag, subDirPaths...)
 				if err != nil {
 					return fmt.Errorf("get commits since %s: %w", latestTag, err)
 				}
@@ -156,12 +156,7 @@ func Run(ctx context.Context, dir string, opts Options) error {
 				}
 
 				if cfg.Notes.IncludeDiffs {
-					var diffs string
-					if cfg.SubDir != "" {
-						diffs, err = git.DiffSince(ctx, dir, latestTag, cfg.SubDir)
-					} else {
-						diffs, err = git.DiffSince(ctx, dir, latestTag)
-					}
+					diffs, err := git.DiffSince(ctx, dir, latestTag, subDirPaths...)
 					if err != nil {
 						return fmt.Errorf("get diffs: %w", err)
 					}

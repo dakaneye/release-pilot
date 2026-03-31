@@ -75,6 +75,10 @@ func initCmd() *cobra.Command {
 ecosystem: auto
 model: claude-sonnet-4-6
 
+# Monorepo support (uncomment for monorepo sub-projects):
+# tag-prefix: my-app/
+# sub-dir: my-app/
+
 notes:
   include-diffs: false
 
