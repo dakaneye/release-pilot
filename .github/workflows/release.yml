@@ -27,3 +27,4 @@ jobs:
         uses: ./action
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          args: "--tag ${{ github.ref_name }}"

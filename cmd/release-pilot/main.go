@@ -55,6 +55,7 @@ func shipCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "preview without making changes")
 	cmd.Flags().BoolVar(&opts.Sign, "sign", false, "enable cosign signing")
 	cmd.Flags().StringVar(&opts.VersionOver, "version", "", "override the version (e.g. v1.2.3)")
+	cmd.Flags().StringVar(&opts.Tag, "tag", "", "existing tag to release (CI mode: skips tag creation, uses previous tag as baseline)")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "reset pipeline state and re-run")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "path to config file")
 

@@ -133,6 +133,38 @@ func TestTagTimestamp(t *testing.T) {
 	}
 }
 
+func TestPreviousTag(t *testing.T) {
+	ctx := t.Context()
+	dir := initRepo(t)
+	run(t, dir, "git", "tag", "-a", "v0.1.0", "-m", "v0.1.0")
+
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", ".")
+	run(t, dir, "git", "commit", "-m", "feat: something")
+	run(t, dir, "git", "tag", "-a", "v0.2.0", "-m", "v0.2.0")
+
+	prev, err := git.PreviousTag(ctx, dir, "v0.2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prev != "v0.1.0" {
+		t.Errorf("expected v0.1.0, got %s", prev)
+	}
+}
+
+func TestPreviousTagNoPrevious(t *testing.T) {
+	ctx := t.Context()
+	dir := initRepo(t)
+	run(t, dir, "git", "tag", "-a", "v0.1.0", "-m", "v0.1.0")
+
+	_, err := git.PreviousTag(ctx, dir, "v0.1.0")
+	if err == nil {
+		t.Fatal("expected error when no previous tag")
+	}
+}
+
 func TestContextCancellation(t *testing.T) {
 	dir := initRepo(t)
 	ctx, cancel := context.WithCancel(t.Context())

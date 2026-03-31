@@ -25,6 +25,7 @@ type Options struct {
 	DryRun      bool
 	Sign        bool
 	VersionOver string
+	Tag         string // pre-existing tag (CI mode: tag already pushed, use previous tag as baseline)
 	Force       bool
 	ConfigPath  string
 }
@@ -88,9 +89,21 @@ func Run(ctx context.Context, dir string, opts Options) error {
 		{
 			Name: "bump",
 			Run: func(sctx *pipeline.StepContext) error {
-				latestTag, err := git.LatestTag(ctx, dir)
-				if err != nil {
-					return fmt.Errorf("get latest tag: %w", err)
+				var latestTag string
+				if opts.Tag != "" {
+					// CI mode: tag already exists, find the previous one as baseline
+					prev, err := git.PreviousTag(ctx, dir, opts.Tag)
+					if err != nil {
+						return fmt.Errorf("find previous tag before %s: %w", opts.Tag, err)
+					}
+					latestTag = prev
+					sctx.State.Set("tag", opts.Tag)
+				} else {
+					tag, err := git.LatestTag(ctx, dir)
+					if err != nil {
+						return fmt.Errorf("get latest tag: %w", err)
+					}
+					latestTag = tag
 				}
 				log.Printf("latest tag: %s", latestTag)
 
@@ -134,36 +147,27 @@ func Run(ctx context.Context, dir string, opts Options) error {
 					input.Diffs = diffs
 				}
 
-				var bumpLevel string
-				var notes string
+				analysis, err := claudeClient.Analyze(ctx, input)
+				if err != nil {
+					return fmt.Errorf("claude analysis: %w", err)
+				}
 
-				if opts.VersionOver != "" {
-					// Use override version directly; still call AI for notes.
-					analysis, err := claudeClient.Analyze(ctx, input)
-					if err != nil {
-						return fmt.Errorf("claude analysis: %w", err)
-					}
-					notes = analysis.Notes
+				sctx.State.Set("notes", analysis.Notes)
 
+				if opts.Tag != "" {
+					// CI mode: tag already set above from --tag flag
+					sctx.State.Set("bump", analysis.Bump)
+				} else if opts.VersionOver != "" {
 					overVer, err := version.ParseTag(opts.VersionOver)
 					if err != nil {
 						return fmt.Errorf("parse version override %s: %w", opts.VersionOver, err)
 					}
 					sctx.State.Set("tag", overVer.Tag())
 					sctx.State.Set("bump", "override")
-					sctx.State.Set("notes", notes)
 				} else {
-					analysis, err := claudeClient.Analyze(ctx, input)
-					if err != nil {
-						return fmt.Errorf("claude analysis: %w", err)
-					}
-					bumpLevel = analysis.Bump
-					notes = analysis.Notes
-
-					next := current.Bump(bumpLevel)
+					next := current.Bump(analysis.Bump)
 					sctx.State.Set("tag", next.Tag())
-					sctx.State.Set("bump", bumpLevel)
-					sctx.State.Set("notes", notes)
+					sctx.State.Set("bump", analysis.Bump)
 				}
 
 				log.Printf("next version: %s (bump: %s)", sctx.State.Get("tag"), sctx.State.Get("bump"))
@@ -208,21 +212,24 @@ func Run(ctx context.Context, dir string, opts Options) error {
 					return nil
 				}
 
-				// For Python/Node, commit and push the manifest change.
-				if eco == "python" || eco == "node" {
-					if err := git.CommitAll(ctx, dir, fmt.Sprintf("release: %s", tag)); err != nil {
-						return fmt.Errorf("commit manifest: %w", err)
+				// Skip tag creation in CI mode (--tag): tag already exists
+				if opts.Tag == "" {
+					// For Python/Node, commit and push the manifest change.
+					if eco == "python" || eco == "node" {
+						if err := git.CommitAll(ctx, dir, fmt.Sprintf("release: %s", tag)); err != nil {
+							return fmt.Errorf("commit manifest: %w", err)
+						}
+						if err := git.Push(ctx, dir); err != nil {
+							return fmt.Errorf("push manifest commit: %w", err)
+						}
 					}
-					if err := git.Push(ctx, dir); err != nil {
-						return fmt.Errorf("push manifest commit: %w", err)
-					}
-				}
 
-				if err := git.CreateTag(ctx, dir, tag); err != nil {
-					return fmt.Errorf("create tag: %w", err)
-				}
-				if err := git.PushTag(ctx, dir, tag); err != nil {
-					return fmt.Errorf("push tag: %w", err)
+					if err := git.CreateTag(ctx, dir, tag); err != nil {
+						return fmt.Errorf("create tag: %w", err)
+					}
+					if err := git.PushTag(ctx, dir, tag); err != nil {
+						return fmt.Errorf("push tag: %w", err)
+					}
 				}
 
 				if hasGoreleaser {

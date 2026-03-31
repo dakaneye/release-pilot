@@ -26,6 +26,29 @@ func LatestTag(ctx context.Context, dir string) (string, error) {
 	return tags[0], nil
 }
 
+// PreviousTag returns the tag before the given tag in version order.
+func PreviousTag(ctx context.Context, dir string, current string) (string, error) {
+	out, err := runGit(ctx, dir, "tag", "--sort=-version:refname")
+	if err != nil {
+		return "", fmt.Errorf("list tags: %w", err)
+	}
+	tags := strings.Split(strings.TrimSpace(out), "\n")
+	found := false
+	for _, t := range tags {
+		if t == current {
+			found = true
+			continue
+		}
+		if found && t != "" {
+			return t, nil
+		}
+	}
+	if !found {
+		return "", fmt.Errorf("tag %s not found", current)
+	}
+	return "", fmt.Errorf("no tag before %s", current)
+}
+
 func CommitsSince(ctx context.Context, dir string, tag string) ([]Commit, error) {
 	out, err := runGit(ctx, dir, "log", tag+"..HEAD", "--pretty=format:%H %s")
 	if err != nil {
