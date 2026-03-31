@@ -12,6 +12,7 @@ import (
 )
 
 func TestAnalyze(t *testing.T) {
+	ctx := t.Context()
 	responseJSON := `{"bump": "minor", "notes": "## Features\n\n- Search added"}`
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +54,7 @@ func TestAnalyze(t *testing.T) {
 		},
 	}
 
-	result, err := client.Analyze(input)
+	result, err := client.Analyze(ctx, input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,6 +67,7 @@ func TestAnalyze(t *testing.T) {
 }
 
 func TestAnalyzeInvalidJSON(t *testing.T) {
+	ctx := t.Context()
 	callCount := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
@@ -98,7 +100,7 @@ func TestAnalyzeInvalidJSON(t *testing.T) {
 		Commits:    []git.Commit{{Hash: "abc1234567890", Subject: "fix: bug"}},
 	}
 
-	result, err := client.Analyze(input)
+	result, err := client.Analyze(ctx, input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,6 +113,7 @@ func TestAnalyzeInvalidJSON(t *testing.T) {
 }
 
 func TestAnalyzeBothRetriesFail(t *testing.T) {
+	ctx := t.Context()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{
@@ -131,7 +134,7 @@ func TestAnalyzeBothRetriesFail(t *testing.T) {
 		Commits:    []git.Commit{{Hash: "abc1234567890", Subject: "fix: bug"}},
 	}
 
-	_, err := client.Analyze(input)
+	_, err := client.Analyze(ctx, input)
 	if err == nil {
 		t.Fatal("expected error after both retries fail")
 	}

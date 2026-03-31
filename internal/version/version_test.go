@@ -95,6 +95,45 @@ func TestUpdatePackageJSON(t *testing.T) {
 	}
 }
 
+func TestUpdatePackageJSONPreservesKeyOrder(t *testing.T) {
+	dir := t.TempDir()
+	pkg := filepath.Join(dir, "package.json")
+	original := `{
+  "name": "my-app",
+  "version": "1.0.0",
+  "description": "test",
+  "main": "index.js"
+}`
+	if err := os.WriteFile(pkg, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := version.UpdateManifest(pkg, "node", "2.0.0"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(pkg)
+	content := string(data)
+
+	nameIdx := strings.Index(content, `"name"`)
+	versionIdx := strings.Index(content, `"version"`)
+	descIdx := strings.Index(content, `"description"`)
+	mainIdx := strings.Index(content, `"main"`)
+
+	if nameIdx >= versionIdx {
+		t.Errorf("name should appear before version in output:\n%s", content)
+	}
+	if versionIdx >= descIdx {
+		t.Errorf("version should appear before description in output:\n%s", content)
+	}
+	if descIdx >= mainIdx {
+		t.Errorf("description should appear before main in output:\n%s", content)
+	}
+	if !strings.Contains(content, `"version": "2.0.0"`) {
+		t.Errorf("expected version 2.0.0 in:\n%s", content)
+	}
+}
+
 func TestUpdatePyprojectTOML(t *testing.T) {
 	dir := t.TempDir()
 	pyproject := filepath.Join(dir, "pyproject.toml")

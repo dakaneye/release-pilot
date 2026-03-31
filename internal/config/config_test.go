@@ -9,7 +9,10 @@ import (
 )
 
 func TestDefaults(t *testing.T) {
-	cfg := config.Load("")
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.Ecosystem != "auto" {
 		t.Errorf("expected ecosystem=auto, got %s", cfg.Ecosystem)
 	}
@@ -43,7 +46,10 @@ github:
 		t.Fatal(err)
 	}
 
-	cfg := config.Load(cfgPath)
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.Ecosystem != "python" {
 		t.Errorf("expected ecosystem=python, got %s", cfg.Ecosystem)
 	}
@@ -67,15 +73,34 @@ func TestEnvVarOverridesConfig(t *testing.T) {
 	}
 
 	t.Setenv("RELEASE_PILOT_MODEL", "claude-haiku-4-5")
-	cfg := config.Load(cfgPath)
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.Model != "claude-haiku-4-5" {
 		t.Errorf("expected model=claude-haiku-4-5, got %s", cfg.Model)
 	}
 }
 
 func TestMissingFileUsesDefaults(t *testing.T) {
-	cfg := config.Load("/nonexistent/.release-pilot.yaml")
+	cfg, err := config.Load("/nonexistent/.release-pilot.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg.Ecosystem != "auto" {
 		t.Errorf("expected defaults when file missing, got ecosystem=%s", cfg.Ecosystem)
+	}
+}
+
+func TestInvalidYAMLReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".release-pilot.yaml")
+	if err := os.WriteFile(cfgPath, []byte(":\n  :\n    : [invalid"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := config.Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
 	}
 }

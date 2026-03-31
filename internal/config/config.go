@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -33,9 +34,9 @@ func defaults() Config {
 }
 
 // Load reads config from path (falling back to ".release-pilot.yaml" if empty),
-// then applies RELEASE_PILOT_MODEL env var override if set. Missing files are
-// silently ignored and defaults are used.
-func Load(path string) Config {
+// then applies RELEASE_PILOT_MODEL env var override if set. Missing files return
+// defaults with nil error; YAML parse failures return an error.
+func Load(path string) (Config, error) {
 	cfg := defaults()
 
 	if path == "" {
@@ -43,13 +44,23 @@ func Load(path string) Config {
 	}
 
 	data, err := os.ReadFile(path)
-	if err == nil {
-		_ = yaml.Unmarshal(data, &cfg)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return applyEnv(cfg), nil
+		}
+		return cfg, err
 	}
 
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return cfg, err
+	}
+
+	return applyEnv(cfg), nil
+}
+
+func applyEnv(cfg Config) Config {
 	if env := os.Getenv("RELEASE_PILOT_MODEL"); env != "" {
 		cfg.Model = env
 	}
-
 	return cfg
 }

@@ -1,6 +1,7 @@
 package pipeline_test
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,7 @@ import (
 )
 
 func TestPipelineRunsAllSteps(t *testing.T) {
+	ctx := t.Context()
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, ".release-pilot-state.json")
 
@@ -16,7 +18,7 @@ func TestPipelineRunsAllSteps(t *testing.T) {
 	makeStep := func(name string) pipeline.Step {
 		return pipeline.Step{
 			Name: name,
-			Run: func(ctx *pipeline.Context) error {
+			Run: func(ctx *pipeline.StepContext) error {
 				executed = append(executed, name)
 				return nil
 			},
@@ -31,7 +33,7 @@ func TestPipelineRunsAllSteps(t *testing.T) {
 		makeStep("sign"),
 	})
 
-	if err := p.Run(false); err != nil {
+	if err := p.Run(ctx, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -47,6 +49,7 @@ func TestPipelineRunsAllSteps(t *testing.T) {
 }
 
 func TestPipelineSkipsCompletedSteps(t *testing.T) {
+	ctx := t.Context()
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, ".release-pilot-state.json")
 
@@ -60,7 +63,7 @@ func TestPipelineSkipsCompletedSteps(t *testing.T) {
 	makeStep := func(name string) pipeline.Step {
 		return pipeline.Step{
 			Name: name,
-			Run: func(ctx *pipeline.Context) error {
+			Run: func(ctx *pipeline.StepContext) error {
 				executed = append(executed, name)
 				return nil
 			},
@@ -72,7 +75,7 @@ func TestPipelineSkipsCompletedSteps(t *testing.T) {
 		makeStep("bump"),
 	})
 
-	if err := p.Run(false); err != nil {
+	if err := p.Run(ctx, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -82,6 +85,7 @@ func TestPipelineSkipsCompletedSteps(t *testing.T) {
 }
 
 func TestPipelineForceResetsState(t *testing.T) {
+	ctx := t.Context()
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, ".release-pilot-state.json")
 
@@ -95,7 +99,7 @@ func TestPipelineForceResetsState(t *testing.T) {
 	makeStep := func(name string) pipeline.Step {
 		return pipeline.Step{
 			Name: name,
-			Run: func(ctx *pipeline.Context) error {
+			Run: func(ctx *pipeline.StepContext) error {
 				executed = append(executed, name)
 				return nil
 			},
@@ -107,7 +111,7 @@ func TestPipelineForceResetsState(t *testing.T) {
 		makeStep("bump"),
 	})
 
-	if err := p.Run(true); err != nil {
+	if err := p.Run(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,26 +121,27 @@ func TestPipelineForceResetsState(t *testing.T) {
 }
 
 func TestPipelineStopsOnError(t *testing.T) {
+	ctx := t.Context()
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, ".release-pilot-state.json")
 
 	var executed []string
 	p := pipeline.New(statePath, []pipeline.Step{
-		{Name: "detect", Run: func(ctx *pipeline.Context) error {
+		{Name: "detect", Run: func(ctx *pipeline.StepContext) error {
 			executed = append(executed, "detect")
 			return nil
 		}},
-		{Name: "bump", Run: func(ctx *pipeline.Context) error {
+		{Name: "bump", Run: func(ctx *pipeline.StepContext) error {
 			executed = append(executed, "bump")
 			return fmt.Errorf("API key missing")
 		}},
-		{Name: "notes", Run: func(ctx *pipeline.Context) error {
+		{Name: "notes", Run: func(ctx *pipeline.StepContext) error {
 			executed = append(executed, "notes")
 			return nil
 		}},
 	})
 
-	err := p.Run(false)
+	err := p.Run(ctx, false)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -154,6 +159,7 @@ func TestPipelineStopsOnError(t *testing.T) {
 }
 
 func TestPipelineRunSingleStep(t *testing.T) {
+	ctx := t.Context()
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, ".release-pilot-state.json")
 
@@ -161,7 +167,7 @@ func TestPipelineRunSingleStep(t *testing.T) {
 	makeStep := func(name string) pipeline.Step {
 		return pipeline.Step{
 			Name: name,
-			Run: func(ctx *pipeline.Context) error {
+			Run: func(ctx *pipeline.StepContext) error {
 				executed = append(executed, name)
 				return nil
 			},
@@ -174,11 +180,30 @@ func TestPipelineRunSingleStep(t *testing.T) {
 		makeStep("notes"),
 	})
 
-	if err := p.RunStep("bump", false); err != nil {
+	if err := p.RunStep(ctx, "bump", false); err != nil {
 		t.Fatal(err)
 	}
 
 	if len(executed) != 1 || executed[0] != "bump" {
 		t.Errorf("expected only bump, got %v", executed)
+	}
+}
+
+func TestPipelineCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, ".release-pilot-state.json")
+
+	p := pipeline.New(statePath, []pipeline.Step{
+		{Name: "detect", Run: func(ctx *pipeline.StepContext) error {
+			return nil
+		}},
+	})
+
+	err := p.Run(ctx, false)
+	if err == nil {
+		t.Fatal("expected error with cancelled context")
 	}
 }

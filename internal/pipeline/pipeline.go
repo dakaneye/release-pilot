@@ -1,17 +1,18 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"log"
 )
 
-type Context struct {
+type StepContext struct {
 	State *State
 }
 
 type Step struct {
 	Name string
-	Run  func(ctx *Context) error
+	Run  func(ctx *StepContext) error
 }
 
 type Pipeline struct {
@@ -26,7 +27,7 @@ func New(statePath string, steps []Step) *Pipeline {
 	}
 }
 
-func (p *Pipeline) Run(force bool) error {
+func (p *Pipeline) Run(ctx context.Context, force bool) error {
 	state, err := LoadState(p.statePath)
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -39,16 +40,20 @@ func (p *Pipeline) Run(force bool) error {
 		}
 	}
 
-	ctx := &Context{State: state}
+	stepCtx := &StepContext{State: state}
 
 	for _, step := range p.steps {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("pipeline cancelled: %w", err)
+		}
+
 		if state.IsCompleted(step.Name) {
 			log.Printf("skipping completed step: %s", step.Name)
 			continue
 		}
 
 		log.Printf("running step: %s", step.Name)
-		if err := step.Run(ctx); err != nil {
+		if err := step.Run(stepCtx); err != nil {
 			return fmt.Errorf("step %s: %w", step.Name, err)
 		}
 
@@ -61,7 +66,7 @@ func (p *Pipeline) Run(force bool) error {
 	return nil
 }
 
-func (p *Pipeline) RunStep(name string, force bool) error {
+func (p *Pipeline) RunStep(ctx context.Context, name string, force bool) error {
 	state, err := LoadState(p.statePath)
 	if err != nil {
 		return fmt.Errorf("load state: %w", err)
@@ -71,17 +76,21 @@ func (p *Pipeline) RunStep(name string, force bool) error {
 		delete(state.Steps, name)
 	}
 
-	ctx := &Context{State: state}
+	stepCtx := &StepContext{State: state}
 
 	for _, step := range p.steps {
 		if step.Name == name {
+			if err := ctx.Err(); err != nil {
+				return fmt.Errorf("pipeline cancelled: %w", err)
+			}
+
 			if state.IsCompleted(step.Name) {
 				log.Printf("skipping completed step: %s", step.Name)
 				return nil
 			}
 
 			log.Printf("running step: %s", step.Name)
-			if err := step.Run(ctx); err != nil {
+			if err := step.Run(stepCtx); err != nil {
 				return fmt.Errorf("step %s: %w", step.Name, err)
 			}
 

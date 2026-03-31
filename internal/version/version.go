@@ -1,7 +1,6 @@
 package version
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,38 +70,31 @@ func UpdateManifest(path string, ecosystem string, newVersion string) error {
 	}
 }
 
+var jsonVersionPattern = regexp.MustCompile(`("version"\s*:\s*")([^"]+)(")`)
+
 func updateJSON(path string, newVersion string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
-		return fmt.Errorf("parse %s: %w", path, err)
+	if !jsonVersionPattern.Match(data) {
+		return fmt.Errorf("no version field found in %s", path)
 	}
 
-	obj["version"] = newVersion
-
-	out, err := json.MarshalIndent(obj, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal %s: %w", path, err)
-	}
-
-	if err := os.WriteFile(path, append(out, '\n'), 0o644); err != nil {
+	updated := jsonVersionPattern.ReplaceAll(data, []byte("${1}"+newVersion+"${3}"))
+	if err := os.WriteFile(path, updated, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
 	// Update package-lock.json if present alongside package.json.
-	lockPath := filepath.Join(filepath.Dir(path), "package-lock.json")
+	dir := filepath.Dir(path)
+	lockPath := filepath.Join(dir, "package-lock.json")
 	if lockData, err := os.ReadFile(lockPath); err == nil {
-		var lockObj map[string]any
-		if err := json.Unmarshal(lockData, &lockObj); err == nil {
-			lockObj["version"] = newVersion
-			if lockOut, err := json.MarshalIndent(lockObj, "", "  "); err == nil {
-				if err := os.WriteFile(lockPath, append(lockOut, '\n'), 0o644); err != nil {
-					return fmt.Errorf("write %s: %w", lockPath, err)
-				}
+		if jsonVersionPattern.Match(lockData) {
+			lockUpdated := jsonVersionPattern.ReplaceAll(lockData, []byte("${1}"+newVersion+"${3}"))
+			if err := os.WriteFile(lockPath, lockUpdated, 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", lockPath, err)
 			}
 		}
 	}

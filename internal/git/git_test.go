@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,11 +37,12 @@ func run(t *testing.T, dir string, name string, args ...string) {
 }
 
 func TestLatestTag(t *testing.T) {
+	ctx := t.Context()
 	dir := initRepo(t)
 	run(t, dir, "git", "tag", "v0.1.0")
 	run(t, dir, "git", "tag", "v0.2.0")
 
-	tag, err := git.LatestTag(dir)
+	tag, err := git.LatestTag(ctx, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,15 +52,17 @@ func TestLatestTag(t *testing.T) {
 }
 
 func TestLatestTagNoTags(t *testing.T) {
+	ctx := t.Context()
 	dir := initRepo(t)
 
-	_, err := git.LatestTag(dir)
+	_, err := git.LatestTag(ctx, dir)
 	if err == nil {
 		t.Fatal("expected error when no tags exist")
 	}
 }
 
 func TestCommitsSince(t *testing.T) {
+	ctx := t.Context()
 	dir := initRepo(t)
 	run(t, dir, "git", "tag", "v0.1.0")
 
@@ -74,7 +78,7 @@ func TestCommitsSince(t *testing.T) {
 	run(t, dir, "git", "add", ".")
 	run(t, dir, "git", "commit", "-m", "fix: fix bug B")
 
-	commits, err := git.CommitsSince(dir, "v0.1.0")
+	commits, err := git.CommitsSince(ctx, dir, "v0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,18 +88,58 @@ func TestCommitsSince(t *testing.T) {
 }
 
 func TestCreateTag(t *testing.T) {
+	ctx := t.Context()
 	dir := initRepo(t)
 
-	err := git.CreateTag(dir, "v1.0.0")
+	err := git.CreateTag(ctx, dir, "v1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tag, err := git.LatestTag(dir)
+	tag, err := git.LatestTag(ctx, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if tag != "v1.0.0" {
 		t.Errorf("expected v1.0.0, got %s", tag)
+	}
+}
+
+func TestRemoteURL(t *testing.T) {
+	ctx := t.Context()
+	dir := initRepo(t)
+	run(t, dir, "git", "remote", "add", "origin", "https://github.com/test/repo.git")
+
+	url, err := git.RemoteURL(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if url != "https://github.com/test/repo.git" {
+		t.Errorf("got %s", url)
+	}
+}
+
+func TestTagTimestamp(t *testing.T) {
+	ctx := t.Context()
+	dir := initRepo(t)
+	run(t, dir, "git", "tag", "-a", "v1.0.0", "-m", "v1.0.0")
+
+	ts, err := git.TagTimestamp(ctx, dir, "v1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ts.IsZero() {
+		t.Error("expected non-zero timestamp")
+	}
+}
+
+func TestContextCancellation(t *testing.T) {
+	dir := initRepo(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := git.LatestTag(ctx, dir)
+	if err == nil {
+		t.Fatal("expected error with cancelled context")
 	}
 }

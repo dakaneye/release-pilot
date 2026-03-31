@@ -47,7 +47,7 @@ func shipCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("get working directory: %w", err)
 			}
-			return ship.Run(dir, opts)
+			return ship.Run(cmd.Context(), dir, opts)
 		},
 	}
 

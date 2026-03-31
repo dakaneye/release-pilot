@@ -1,6 +1,7 @@
 package ship
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -29,8 +30,11 @@ type Options struct {
 }
 
 // Run orchestrates the full release pipeline.
-func Run(dir string, opts Options) error {
-	cfg := config.Load(opts.ConfigPath)
+func Run(ctx context.Context, dir string, opts Options) error {
+	cfg, err := config.Load(opts.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
 
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
@@ -54,7 +58,7 @@ func Run(dir string, opts Options) error {
 	}
 	statePath := filepath.Join(tmpDir, "release-pilot-state.json")
 
-	remoteURL, err := git.RemoteURL(dir)
+	remoteURL, err := git.RemoteURL(ctx, dir)
 	if err != nil {
 		return fmt.Errorf("get git remote: %w", err)
 	}
@@ -67,24 +71,24 @@ func Run(dir string, opts Options) error {
 	steps := []pipeline.Step{
 		{
 			Name: "detect",
-			Run: func(ctx *pipeline.Context) error {
+			Run: func(sctx *pipeline.StepContext) error {
 				result, err := detect.Ecosystem(dir, cfg.Ecosystem)
 				if err != nil {
 					return err
 				}
 				log.Printf("detected ecosystem: %s", result.Name)
-				ctx.State.Set("ecosystem", result.Name)
-				ctx.State.Set("has-goreleaser", fmt.Sprintf("%t", result.HasGoreleaser))
+				sctx.State.Set("ecosystem", result.Name)
+				sctx.State.Set("has-goreleaser", fmt.Sprintf("%t", result.HasGoreleaser))
 				if result.ManifestPath != "" {
-					ctx.State.Set("manifest-path", result.ManifestPath)
+					sctx.State.Set("manifest-path", result.ManifestPath)
 				}
 				return nil
 			},
 		},
 		{
 			Name: "bump",
-			Run: func(ctx *pipeline.Context) error {
-				latestTag, err := git.LatestTag(dir)
+			Run: func(sctx *pipeline.StepContext) error {
+				latestTag, err := git.LatestTag(ctx, dir)
 				if err != nil {
 					return fmt.Errorf("get latest tag: %w", err)
 				}
@@ -95,17 +99,17 @@ func Run(dir string, opts Options) error {
 					return fmt.Errorf("parse tag %s: %w", latestTag, err)
 				}
 
-				tagTime, err := git.TagTimestamp(dir, latestTag)
+				tagTime, err := git.TagTimestamp(ctx, dir, latestTag)
 				if err != nil {
 					return fmt.Errorf("get tag timestamp: %w", err)
 				}
 
-				prs, err := ghClient.MergedPRsSince(owner, repo, tagTime)
+				prs, err := ghClient.MergedPRsSince(ctx, owner, repo, tagTime)
 				if err != nil {
 					return fmt.Errorf("fetch merged PRs: %w", err)
 				}
 
-				commits, err := git.CommitsSince(dir, latestTag)
+				commits, err := git.CommitsSince(ctx, dir, latestTag)
 				if err != nil {
 					return fmt.Errorf("get commits since %s: %w", latestTag, err)
 				}
@@ -123,7 +127,7 @@ func Run(dir string, opts Options) error {
 				}
 
 				if cfg.Notes.IncludeDiffs {
-					diffs, err := git.DiffSince(dir, latestTag)
+					diffs, err := git.DiffSince(ctx, dir, latestTag)
 					if err != nil {
 						return fmt.Errorf("get diffs: %w", err)
 					}
@@ -135,7 +139,7 @@ func Run(dir string, opts Options) error {
 
 				if opts.VersionOver != "" {
 					// Use override version directly; still call AI for notes.
-					analysis, err := claudeClient.Analyze(input)
+					analysis, err := claudeClient.Analyze(ctx, input)
 					if err != nil {
 						return fmt.Errorf("claude analysis: %w", err)
 					}
@@ -145,11 +149,11 @@ func Run(dir string, opts Options) error {
 					if err != nil {
 						return fmt.Errorf("parse version override %s: %w", opts.VersionOver, err)
 					}
-					ctx.State.Set("tag", overVer.Tag())
-					ctx.State.Set("bump", "override")
-					ctx.State.Set("notes", notes)
+					sctx.State.Set("tag", overVer.Tag())
+					sctx.State.Set("bump", "override")
+					sctx.State.Set("notes", notes)
 				} else {
-					analysis, err := claudeClient.Analyze(input)
+					analysis, err := claudeClient.Analyze(ctx, input)
 					if err != nil {
 						return fmt.Errorf("claude analysis: %w", err)
 					}
@@ -157,18 +161,18 @@ func Run(dir string, opts Options) error {
 					notes = analysis.Notes
 
 					next := current.Bump(bumpLevel)
-					ctx.State.Set("tag", next.Tag())
-					ctx.State.Set("bump", bumpLevel)
-					ctx.State.Set("notes", notes)
+					sctx.State.Set("tag", next.Tag())
+					sctx.State.Set("bump", bumpLevel)
+					sctx.State.Set("notes", notes)
 				}
 
-				log.Printf("next version: %s (bump: %s)", ctx.State.Get("tag"), ctx.State.Get("bump"))
+				log.Printf("next version: %s (bump: %s)", sctx.State.Get("tag"), sctx.State.Get("bump"))
 
 				// Update manifest for Python/Node ecosystems.
-				eco := ctx.State.Get("ecosystem")
-				manifest := ctx.State.Get("manifest-path")
+				eco := sctx.State.Get("ecosystem")
+				manifest := sctx.State.Get("manifest-path")
 				if manifest != "" && (eco == "python" || eco == "node") {
-					tag := ctx.State.Get("tag")
+					tag := sctx.State.Get("tag")
 					ver, _ := version.ParseTag(tag)
 					if err := version.UpdateManifest(manifest, eco, ver.String()); err != nil {
 						return fmt.Errorf("update manifest: %w", err)
@@ -181,19 +185,22 @@ func Run(dir string, opts Options) error {
 		},
 		{
 			Name: "notes",
-			Run: func(ctx *pipeline.Context) error {
-				notes := ctx.State.Get("notes")
+			Run: func(sctx *pipeline.StepContext) error {
+				notes := sctx.State.Get("notes")
+				if notes == "" {
+					return fmt.Errorf("no release notes in state — run bump step first")
+				}
 				log.Printf("release notes generated (%d chars)", len(notes))
 				return nil
 			},
 		},
 		{
 			Name: "release",
-			Run: func(ctx *pipeline.Context) error {
-				tag := ctx.State.Get("tag")
-				notes := ctx.State.Get("notes")
-				eco := ctx.State.Get("ecosystem")
-				hasGoreleaser := ctx.State.Get("has-goreleaser") == "true"
+			Run: func(sctx *pipeline.StepContext) error {
+				tag := sctx.State.Get("tag")
+				notes := sctx.State.Get("notes")
+				eco := sctx.State.Get("ecosystem")
+				hasGoreleaser := sctx.State.Get("has-goreleaser") == "true"
 
 				if opts.DryRun {
 					log.Printf("[dry-run] would create release %s", tag)
@@ -203,18 +210,18 @@ func Run(dir string, opts Options) error {
 
 				// For Python/Node, commit and push the manifest change.
 				if eco == "python" || eco == "node" {
-					if err := git.CommitAll(dir, fmt.Sprintf("release: %s", tag)); err != nil {
+					if err := git.CommitAll(ctx, dir, fmt.Sprintf("release: %s", tag)); err != nil {
 						return fmt.Errorf("commit manifest: %w", err)
 					}
-					if err := git.Push(dir); err != nil {
+					if err := git.Push(ctx, dir); err != nil {
 						return fmt.Errorf("push manifest commit: %w", err)
 					}
 				}
 
-				if err := git.CreateTag(dir, tag); err != nil {
+				if err := git.CreateTag(ctx, dir, tag); err != nil {
 					return fmt.Errorf("create tag: %w", err)
 				}
-				if err := git.PushTag(dir, tag); err != nil {
+				if err := git.PushTag(ctx, dir, tag); err != nil {
 					return fmt.Errorf("push tag: %w", err)
 				}
 
@@ -222,11 +229,11 @@ func Run(dir string, opts Options) error {
 					if err := runGoreleaser(); err != nil {
 						return fmt.Errorf("goreleaser: %w", err)
 					}
-					if err := ghClient.EditReleaseBody(owner, repo, tag, notes); err != nil {
+					if err := ghClient.EditReleaseBody(ctx, owner, repo, tag, notes); err != nil {
 						return fmt.Errorf("edit release body: %w", err)
 					}
 				} else {
-					releaseURL, err := ghClient.CreateRelease(owner, repo, github.ReleaseParams{
+					releaseURL, err := ghClient.CreateRelease(ctx, owner, repo, github.ReleaseParams{
 						Tag:        tag,
 						Name:       tag,
 						Body:       notes,
@@ -236,7 +243,7 @@ func Run(dir string, opts Options) error {
 					if err != nil {
 						return fmt.Errorf("create release: %w", err)
 					}
-					ctx.State.Set("release-url", releaseURL)
+					sctx.State.Set("release-url", releaseURL)
 					log.Printf("release created: %s", releaseURL)
 				}
 
@@ -245,13 +252,13 @@ func Run(dir string, opts Options) error {
 		},
 		{
 			Name: "sign",
-			Run: func(ctx *pipeline.Context) error {
-				tag := ctx.State.Get("tag")
+			Run: func(sctx *pipeline.StepContext) error {
+				tag := sctx.State.Get("tag")
 				if opts.DryRun {
 					log.Printf("[dry-run] would sign %s", tag)
 					return nil
 				}
-				return sign.Run(opts.Sign, tag, owner, repo)
+				return sign.Run(ctx, opts.Sign, tag, owner, repo)
 			},
 		},
 	}
@@ -259,9 +266,9 @@ func Run(dir string, opts Options) error {
 	p := pipeline.New(statePath, steps)
 
 	if opts.Step != "" {
-		return p.RunStep(opts.Step, opts.Force)
+		return p.RunStep(ctx, opts.Step, opts.Force)
 	}
-	return p.Run(opts.Force)
+	return p.Run(ctx, opts.Force)
 }
 
 // parseRemote extracts owner and repo from a git remote URL.

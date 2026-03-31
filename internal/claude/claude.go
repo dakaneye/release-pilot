@@ -2,6 +2,7 @@ package claude
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,10 +34,10 @@ func NewClient(apiKey, model, baseURL string) *Client {
 	}
 }
 
-func (c *Client) Analyze(input PromptInput) (AnalysisResult, error) {
+func (c *Client) Analyze(ctx context.Context, input PromptInput) (AnalysisResult, error) {
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
-		result, err := c.callAPI(input)
+		result, err := c.callAPI(ctx, input)
 		if err == nil {
 			return result, nil
 		}
@@ -45,7 +46,7 @@ func (c *Client) Analyze(input PromptInput) (AnalysisResult, error) {
 	return AnalysisResult{}, fmt.Errorf("claude analysis failed after retry: %w", lastErr)
 }
 
-func (c *Client) callAPI(input PromptInput) (AnalysisResult, error) {
+func (c *Client) callAPI(ctx context.Context, input PromptInput) (AnalysisResult, error) {
 	reqBody := map[string]any{
 		"model":      c.model,
 		"max_tokens": 4096,
@@ -63,7 +64,7 @@ func (c *Client) callAPI(input PromptInput) (AnalysisResult, error) {
 		return AnalysisResult{}, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.baseURL+"/v1/messages", bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/messages", bytes.NewReader(data))
 	if err != nil {
 		return AnalysisResult{}, fmt.Errorf("create request: %w", err)
 	}

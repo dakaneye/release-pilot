@@ -1,6 +1,7 @@
 package ship_test
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,10 +12,11 @@ import (
 )
 
 func TestShipMissingAPIKey(t *testing.T) {
+	ctx := t.Context()
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	t.Setenv("GITHUB_TOKEN", "fake")
 
-	err := ship.Run(t.TempDir(), ship.Options{})
+	err := ship.Run(ctx, t.TempDir(), ship.Options{})
 	if err == nil {
 		t.Fatal("expected error for missing API key")
 	}
@@ -24,10 +26,11 @@ func TestShipMissingAPIKey(t *testing.T) {
 }
 
 func TestShipMissingGitHubToken(t *testing.T) {
+	ctx := t.Context()
 	t.Setenv("ANTHROPIC_API_KEY", "fake")
 	t.Setenv("GITHUB_TOKEN", "")
 
-	err := ship.Run(t.TempDir(), ship.Options{})
+	err := ship.Run(ctx, t.TempDir(), ship.Options{})
 	if err == nil {
 		t.Fatal("expected error for missing GitHub token")
 	}
@@ -37,13 +40,14 @@ func TestShipMissingGitHubToken(t *testing.T) {
 }
 
 func TestShipNoManifest(t *testing.T) {
+	ctx := t.Context()
 	t.Setenv("ANTHROPIC_API_KEY", "fake")
 	t.Setenv("GITHUB_TOKEN", "fake")
 
 	dir := t.TempDir()
 	initGitRepo(t, dir)
 
-	err := ship.Run(dir, ship.Options{})
+	err := ship.Run(ctx, dir, ship.Options{})
 	if err == nil {
 		t.Fatal("expected error for no manifest")
 	}
@@ -51,6 +55,21 @@ func TestShipNoManifest(t *testing.T) {
 	errStr := err.Error()
 	if !strings.Contains(errStr, "ecosystem") && !strings.Contains(errStr, "detect") {
 		t.Errorf("error should mention ecosystem detection: %v", err)
+	}
+}
+
+func TestShipCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	t.Setenv("ANTHROPIC_API_KEY", "fake")
+	t.Setenv("GITHUB_TOKEN", "fake")
+
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+
+	err := ship.Run(ctx, dir, ship.Options{})
+	if err == nil {
+		t.Fatal("expected error for cancelled context")
 	}
 }
 
