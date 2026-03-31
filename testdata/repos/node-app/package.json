@@ -1,0 +1,7 @@
+{
+  "name": "node-app",
+  "version": "2.0.0",
+  "description": "A sample Node.js application for testing release-pilot",
+  "main": "index.js",
+  "type": "module"
+}

@@ -1,0 +1,9 @@
+[project]
+name = "python-app"
+version = "0.1.0"
+description = "A sample Python application for testing release-pilot"
+requires-python = ">=3.11"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
