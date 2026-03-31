@@ -18,7 +18,6 @@ What you expected to happen.
 **Environment**
 - OS: [e.g. macOS 14.0]
 - Version: [e.g. 0.1.0]
-- Go version: [e.g. 1.22]
 
 **Logs**
 ```
