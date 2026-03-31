@@ -46,7 +46,7 @@ func CommitsSince(dir string, tag string) ([]Commit, error) {
 }
 
 func CreateTag(dir string, tag string) error {
-	_, err := runGit(dir, "tag", tag)
+	_, err := runGit(dir, "tag", "-a", tag, "-m", tag)
 	if err != nil {
 		return fmt.Errorf("create tag %s: %w", tag, err)
 	}
