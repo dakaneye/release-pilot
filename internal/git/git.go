@@ -14,20 +14,28 @@ type Commit struct {
 	Subject string
 }
 
-func LatestTag(ctx context.Context, dir string) (string, error) {
+func LatestTag(ctx context.Context, dir string, prefix string) (string, error) {
 	out, err := runGit(ctx, dir, "tag", "--sort=-version:refname")
 	if err != nil {
 		return "", fmt.Errorf("no tags found: %w", err)
 	}
 	tags := strings.Split(strings.TrimSpace(out), "\n")
-	if len(tags) == 0 || tags[0] == "" {
-		return "", errors.New("no tags found")
+	for _, t := range tags {
+		if t == "" {
+			continue
+		}
+		if prefix == "" || strings.HasPrefix(t, prefix) {
+			return t, nil
+		}
 	}
-	return tags[0], nil
+	if prefix != "" {
+		return "", fmt.Errorf("no tags found matching prefix %s", prefix)
+	}
+	return "", errors.New("no tags found")
 }
 
 // PreviousTag returns the tag before the given tag in version order.
-func PreviousTag(ctx context.Context, dir string, current string) (string, error) {
+func PreviousTag(ctx context.Context, dir string, current string, prefix string) (string, error) {
 	out, err := runGit(ctx, dir, "tag", "--sort=-version:refname")
 	if err != nil {
 		return "", fmt.Errorf("list tags: %w", err)
@@ -35,6 +43,9 @@ func PreviousTag(ctx context.Context, dir string, current string) (string, error
 	tags := strings.Split(strings.TrimSpace(out), "\n")
 	found := false
 	for _, t := range tags {
+		if prefix != "" && !strings.HasPrefix(t, prefix) {
+			continue
+		}
 		if t == current {
 			found = true
 			continue

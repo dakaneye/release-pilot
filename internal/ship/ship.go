@@ -92,14 +92,14 @@ func Run(ctx context.Context, dir string, opts Options) error {
 				var latestTag string
 				if opts.Tag != "" {
 					// CI mode: tag already exists, find the previous one as baseline
-					prev, err := git.PreviousTag(ctx, dir, opts.Tag)
+					prev, err := git.PreviousTag(ctx, dir, opts.Tag, "")
 					if err != nil {
 						return fmt.Errorf("find previous tag before %s: %w", opts.Tag, err)
 					}
 					latestTag = prev
 					sctx.State.Set("tag", opts.Tag)
 				} else {
-					tag, err := git.LatestTag(ctx, dir)
+					tag, err := git.LatestTag(ctx, dir, "")
 					if err != nil {
 						return fmt.Errorf("get latest tag: %w", err)
 					}
