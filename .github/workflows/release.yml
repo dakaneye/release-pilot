@@ -22,9 +22,12 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Dogfood: use release-pilot's own action for the release
+      # Dogfood: build from source (this repo has the latest code)
+      - name: Build release-pilot
+        run: go build -o /usr/local/bin/release-pilot ./cmd/release-pilot/
+
       - name: Release with release-pilot
-        uses: ./action
-        with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          args: "--tag ${{ github.ref_name }}"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: release-pilot ship --tag ${{ github.ref_name }}
