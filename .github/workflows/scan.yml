@@ -11,21 +11,8 @@ permissions:
 
 jobs:
   scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Grype filesystem scan
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        id: scan
-        with:
-          path: "."
-          fail-build: true
-          severity-cutoff: high
-          only-fixed: true
-
-      - name: Upload SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
-        with:
-          sarif_file: ${{ steps.scan.outputs.sarif }}
+    uses: dakaneye/hookshot/.github/workflows/scan.yml@v1
+    with:
+      severity-cutoff: high
+      only-fixed: true
+      fail-build: true
